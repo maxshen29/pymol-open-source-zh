@@ -47,6 +47,43 @@ Z* -------------------------------------------------------------------
 #define cPassiveDelay 0.45
 #define cDirtyDelay 0.05
 
+/* The popup menu renders text character by character, so it must decode
+ * multi-byte UTF-8 sequences (e.g. CJK) and know their display width. */
+
+/* Is this Unicode code point rendered with double (CJK) width? */
+static bool PopUpWide(unsigned int cp)
+{
+  return (cp >= 0x1100 && cp <= 0x115F) || /* Hangul Jamo */
+         (cp >= 0x2E80 && cp <= 0xA4CF) || /* CJK radicals .. Yi */
+         (cp >= 0xAC00 && cp <= 0xD7A3) || /* Hangul syllables */
+         (cp >= 0xF900 && cp <= 0xFAFF) || /* CJK compatibility ideographs */
+         (cp >= 0xFE30 && cp <= 0xFE6F) || /* CJK compatibility forms */
+         (cp >= 0xFF00 && cp <= 0xFF60) || /* full-width forms */
+         (cp >= 0xFFE0 && cp <= 0xFFE6);   /* full-width signs */
+}
+
+/* Decode one UTF-8 code point; returns the number of bytes consumed. */
+static int PopUpUTF8(const char *st, unsigned int *cp)
+{
+  const unsigned char c = (unsigned char) st[0];
+  int n = 1;
+  unsigned int v = c;
+  if(c >= 0xF0) {
+    n = 4;
+    v = c & 0x07;
+  } else if(c >= 0xE0) {
+    n = 3;
+    v = c & 0x0F;
+  } else if(c >= 0xC0) {
+    n = 2;
+    v = c & 0x1F;
+  }
+  for(int i = 1; i < n && st[i]; i++)
+    v = (v << 6) | ((unsigned char) st[i] & 0x3F);
+  *cp = v;
+  return n;
+}
+
 struct CPopUp : public Block {
   Block *Parent {};
   Block *Child {};
@@ -188,14 +225,18 @@ Block *PopUpNew(PyMOLGlobals * G, int x, int y, int last_x, int last_y,
     elem = PyList_GetItem(item, 1);
     str = PyString_AsString(elem);
     l = strlen(str);             /* buffer size in UTF-8 bytes */
-    cl = PyUnicode_GetLength(elem); /* display width in code points */
+    /* display width in character cells (1 for ASCII, 2 for CJK) */
+    cl = 0;
     c = str;
     while(*c) {
       if(TextStartsWithColorCode(c)) {  /* discount the markup */
-          c += 3;
-          cl -= 4;
+        c += 4;
+        continue;
       }
-      c++;
+      unsigned int cp = 0;
+      int n = PopUpUTF8(c, &cp);
+      cl += PopUpWide(cp) ? 2 : 1;
+      c += n;
     }
     if(cl > cmx)
       cmx = cl;
@@ -872,11 +913,17 @@ void CPopUp::draw(CGO* orthoCGO)
           // note: previously also supported "\\+++red", but was never used
           if(TextSetColorFromCode(G, c, text_color)) {
             c += 4;
+            continue;
           }
 
           TextSetPos2i(G, xx, y + cPopUpCharLift);
-          TextDrawChar(G, *(c++), orthoCGO);
-          xx = xx + DIP2PIXEL(8);
+          {
+            unsigned int cp = 0;
+            int n = PopUpUTF8(c, &cp);
+            TextDrawUTF8Char(G, c, orthoCGO);
+            c += n;
+            xx = xx + cPopUpCharWidth * (PopUpWide(cp) ? 2 : 1);
+          }
         }
 
         if(I->Sub[a]) {

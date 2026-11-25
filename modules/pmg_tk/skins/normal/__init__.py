@@ -25,6 +25,7 @@ from pmg_tk.skins import PMGSkin
 from .builder import Builder
 
 import pymol._gui
+from pymol import i18n
 
 import traceback
 
@@ -1034,6 +1035,8 @@ PyMOL> color ye<TAB>    (will autocomplete "yellow")
 
         self.setting = Setting(self.app)
 
+        _tr = i18n.tr
+
         def _addmenu(data, parent):
             for item in data:
                 if item[0] == 'separator':
@@ -1042,7 +1045,7 @@ PyMOL> color ye<TAB>    (will autocomplete "yellow")
                     label = item[1]
                     menulabel = parent + '/' + label
                     self.menuBar.addcascademenu(parent, menulabel,
-                        label, label=label, tearoff=FALSE)
+                        label, label=_tr(label), tearoff=FALSE)
                     _addmenu(item[2], menulabel)
                 elif item[0] == 'command':
                     label = item[1]
@@ -1053,26 +1056,40 @@ PyMOL> color ye<TAB>    (will autocomplete "yellow")
                     else:
                         if isinstance(command, str):
                             command = lambda c=command: self.cmd.do(c)
-                        addmenuitem(parent, 'command', label, label=label, command=command)
+                        addmenuitem(parent, 'command', label, label=_tr(label), command=command)
                 elif item[0] == 'check':
                     label = item[1]
                     var = getattr(self.setting, item[2])
                     if len(item) > 4:
-                        addmenuitem(parent, 'checkbutton', label, label=label, variable=var, onvalue=item[3], offvalue=item[4])
+                        addmenuitem(parent, 'checkbutton', label, label=_tr(label), variable=var, onvalue=item[3], offvalue=item[4])
                     else:
-                        addmenuitem(parent, 'checkbutton', label, label=label, variable=var)
+                        addmenuitem(parent, 'checkbutton', label, label=_tr(label), variable=var)
                 elif item[0] == 'radio':
                     label = item[1]
                     var = getattr(self.setting, item[2])
                     value = item[3]
-                    addmenuitem(parent, 'radiobutton', label=label, value=value, variable=var)
+                    addmenuitem(parent, 'radiobutton', label=_tr(label), value=value, variable=var)
                 elif DEBUG:
                     print('error:', item)
 
         for _, label, data in self.get_menudata():
             assert _ == 'menu'
-            self.menuBar.addmenu(label, label, tearoff=TRUE)
+            self.menuBar.addmenu(label, _tr(label), tearoff=TRUE)
             _addmenu(data, label)
+
+        # language selector (Tk menus are built once; a change is applied on
+        # the next start, the choice is persisted for future sessions)
+        try:
+            langmenu = self.menuBar.addcascademenu(
+                    'Display', 'Display/Language', _tr('Language'), tearoff=FALSE)
+            for entry in i18n.available_languages():
+                code, name = entry['code'], entry['native_name']
+                self.menuBar.addmenuitem(
+                        langmenu, 'command', 'lang_' + code, label=name,
+                        command=lambda c=code: i18n.set_language(c, persist=True))
+        except Exception:
+            if DEBUG:
+                traceback.print_exc()
 
 #      self.menuBar.addmenuitem('Help', 'command', 'Release Notes',
 #                               label='Release Notes',

@@ -412,6 +412,11 @@ def launch(args=None, block_input_hook=0):
         args = sys.argv
     invocation.parse_args(args)
 
+    # resolve the UI language from --lang / $PYMOL_LANG / saved preference /
+    # the OS locale before any GUI is constructed
+    from . import i18n as _i18n
+    _i18n.init(options=invocation.options)
+
     if invocation.options.gui == 'pmg_qt':
         if invocation.options.no_gui:
             return _launch_no_gui()
@@ -561,6 +566,9 @@ _cmd = sys.modules['pymol._cmd']
 get_capabilities = _cmd.get_capabilities
 
 from . import cmd
+
+from . import i18n as _i18n
+_i18n.install_command(cmd)
 
 cmd._COb = None
 

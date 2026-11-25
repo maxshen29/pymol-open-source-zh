@@ -10,7 +10,7 @@ import sys
 
 import pymol
 import pymol._gui
-from pymol import colorprinting, save_shortcut
+from pymol import colorprinting, save_shortcut, i18n
 
 from pymol.Qt import QtGui, QtCore, QtWidgets
 from pymol.Qt.utils import (getSaveFileNameWithExt, UpdateLock, WidgetMenu,
@@ -19,13 +19,31 @@ from pymol.Qt.utils import (getSaveFileNameWithExt, UpdateLock, WidgetMenu,
         connectFontContextMenu, getMonospaceFont)
 
 from .pymol_gl_widget import PyMOLGLWidget
-from . import keymapping
+from . import keymapping, i18n_qt
 
 from pmg_qt import properties_dialog, file_dialogs
 
 Qt = QtCore.Qt
 QFileDialog = QtWidgets.QFileDialog
 getOpenFileNames = QFileDialog.getOpenFileNames
+
+
+class _LocalizeOnShowFilter(QtCore.QObject):
+    '''Localize any top-level window (dialog) the first time it is shown.
+
+    Dialogs such as the Builder, Properties or Plugin Manager are constructed
+    on demand, after the main window has already been localized.  This filter
+    translates them (and their tooltips) as soon as they appear.
+    '''
+
+    def eventFilter(self, obj, event):
+        if event.type() == QtCore.QEvent.Type.Show:
+            try:
+                if obj is not None and obj.isWidgetType() and obj.isWindow():
+                    i18n_qt.localize_tree(obj)
+            except Exception:
+                pass
+        return False
 
 
 class PyMOLQtGUI(QtWidgets.QMainWindow, pymol._gui.PyMOLDesktopGUI):
@@ -209,6 +227,13 @@ PyMOL> color ye<TAB>    (will autocomplete "yellow")
 
         cmd = self.cmd = self.pymolwidget.cmd
 
+        # Qt-rendered right-click menu (shows CJK; toggle: qt_context_menu 0)
+        try:
+            from . import qt_context_menu
+            qt_context_menu.install_command(cmd)
+        except Exception:
+            pass
+
         '''
         # command completion
         completer = QtWidgets.QCompleter(cmd.kwhash.keywords, self)
@@ -361,7 +386,7 @@ PyMOL> color ye<TAB>    (will autocomplete "yellow")
         if pymol.IS_MACOS:
             self.menudict['Edit'].setTitle('Edit_')
             QtCore.QTimer.singleShot(10, lambda:
-                    self.menudict['Edit'].setTitle('Edit'))
+                    i18n_qt.localize_menu(self.menudict['Edit'], 'Edit'))
 
         # recent files menu
         if self.open_recent_menu:
@@ -375,13 +400,35 @@ PyMOL> color ye<TAB>    (will autocomplete "yellow")
 
         # some experimental window control
         menu = self.menudict['Display'].addSeparator()
-        menu = self.menudict['Display'].addMenu('External GUI')
-        menu.addAction('Toggle dockable', self.toggle_ext_window_dockable).setShortcut(
-            QtGui.QKeySequence('Ctrl+E'))
+        ext_menu = self.menudict['Display'].addMenu(
+                i18n_qt.translate('External GUI'))
+        i18n_qt.localize_menu(ext_menu, 'External GUI')
+
+        toggle_action = ext_menu.addAction(
+                i18n_qt.translate('Toggle dockable'), self.toggle_ext_window_dockable)
+        toggle_action.setShortcut(QtGui.QKeySequence('Ctrl+E'))
+        i18n_qt.localize_action(toggle_action, 'Toggle dockable')
 
         ext_vis_action = self.ext_window.toggleViewAction()
-        ext_vis_action.setText('Visible')
-        menu.addAction(ext_vis_action)
+        ext_vis_action.setText(i18n_qt.translate('Visible'))
+        i18n_qt.localize_action(ext_vis_action, 'Visible')
+        ext_menu.addAction(ext_vis_action)
+
+        # language selector (each entry stays in its native language)
+        self._language_menu = self.menudict['Display'].addMenu(
+                i18n_qt.translate('Language'))
+        i18n_qt.localize_menu(self._language_menu, 'Language')
+        self._language_actions = {}
+        _lang_group = QtWidgets.QActionGroup(self)
+        for _code, _name in i18n_qt.language_choices():
+            _action = QtWidgets.QAction(_name, self, checkable=True)
+            _action.setChecked(_code == i18n.get_language())
+            _action.triggered.connect(
+                    lambda _=0, code=_code: self.set_ui_language(code))
+            i18n_qt.mark_untranslated(_action)
+            _lang_group.addAction(_action)
+            self._language_menu.addAction(_action)
+            self._language_actions[_code] = _action
 
         # extra key mappings (MacPyMOL compatible)
         QtWidgets.QShortcut(QtGui.QKeySequence('Ctrl+O'), self).activated.connect(self.file_open)
@@ -415,8 +462,39 @@ PyMOL> color ye<TAB>    (will autocomplete "yellow")
         if style:
             self.setStyleSheet(style)
 
+        # Localize the static UI chrome (menus, toolbar, docks) in place and
+        # retranslate it whenever the language changes.
+        i18n_qt.localize_tree(self)
+        i18n.add_listener(lambda _code: self.retranslate_ui())
+
+        # Localize dialogs created after startup (builder, properties, ...).
+        self._i18n_event_filter = _LocalizeOnShowFilter(self)
+        QtWidgets.QApplication.instance().installEventFilter(self._i18n_event_filter)
+
         # Load saved shortcuts on launch
         self.saved_shortcuts = pymol.save_shortcut.load_and_set(self.cmd)
+
+    def set_ui_language(self, code):
+        """Switch the interface language and remember it for the next start."""
+        return i18n.set_language(code, persist=True)
+
+    def retranslate_ui(self):
+        """Re-apply the active language to every localized widget/action."""
+        app = QtWidgets.QApplication.instance()
+        if app is not None:
+            for widget in list(app.topLevelWidgets()):
+                try:
+                    i18n_qt.retranslate_tree(widget)
+                except Exception:
+                    pass
+        else:
+            i18n_qt.retranslate_tree(self)
+        current = i18n.get_language()
+        for code, action in getattr(self, '_language_actions', {}).items():
+            try:
+                action.setChecked(code == current)
+            except Exception:
+                pass
 
     def lineeditKeyPressEventFilter(self, watched, event):
         key = event.key()
@@ -989,7 +1067,9 @@ PyMOL> color ye<TAB>    (will autocomplete "yellow")
 
         # Redirect to Legacy submenu
         self.menudict['PluginQt'] = self.menudict['Plugin']
-        self.menudict['Plugin'] = self.menudict['PluginQt'].addMenu('Legacy Plugins')
+        self.menudict['Plugin'] = self.menudict['PluginQt'].addMenu(
+                i18n_qt.translate('Legacy Plugins'))
+        i18n_qt.localize_menu(self.menudict['Plugin'], 'Legacy Plugins')
         self.menudict['Plugin'].setTearOffEnabled(True)
         self.menudict['PluginQt'].addSeparator()
 

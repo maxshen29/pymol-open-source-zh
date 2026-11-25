@@ -25,11 +25,13 @@ Z* -------------------------------------------------------------------
 #include"Color.h"
 #include"Vector.h"
 #include"Executive.h"
+#include"HudTr.h"
 #include"Picking.h"
 
 #ifdef _PYMOL_FREETYPE
 #include "FontTTF.h"
 #include "FontTTF2.h"
+#include "FontCJK.h"
 #endif
 
 #define FONT_NAME_MAX 255
@@ -53,6 +55,9 @@ struct CText {
   unsigned char UColor[4];
   unsigned char OutlineColor[4];
   int Default_ID = 0;
+  // Font used for overlay text (object list, popups, HUD).  Set to the
+  // embedded CJK font in TextInit() so that Chinese renders correctly.
+  int Default_CJK_ID = 0;
   float Height, Width;
   float Spacing, Just;
   float LabelBuf[2];
@@ -404,13 +409,13 @@ void TextDrawStrAt(PyMOLGlobals * G, const char *st, int x, int y , CGO *orthoCG
 {
   CText *I = G->Text;
   TextSetPos3f(G, (float) x, (float) y, 0.0F);
-  TextRenderOpenGL(G, nullptr, I->Default_ID, st, TEXT_DEFAULT_SIZE, nullptr, false, 0, 1, orthoCGO);
+  TextRenderOpenGL(G, nullptr, I->Default_CJK_ID, st, TEXT_DEFAULT_SIZE, nullptr, false, 0, 1, orthoCGO);
 }
 
 void TextDrawStr(PyMOLGlobals * G, const char *st , CGO *orthoCGO)
 {
   CText *I = G->Text;
-  TextRenderOpenGL(G, nullptr, I->Default_ID, st, TEXT_DEFAULT_SIZE, nullptr, false, 0, 1, orthoCGO);
+  TextRenderOpenGL(G, nullptr, I->Default_CJK_ID, st, TEXT_DEFAULT_SIZE, nullptr, false, 0, 1, orthoCGO);
 }
 
 void TextDrawChar(PyMOLGlobals * G, char ch , CGO *orthoCGO)
@@ -419,6 +424,28 @@ void TextDrawChar(PyMOLGlobals * G, char ch , CGO *orthoCGO)
   CText *I = G->Text;
   st[0] = ch;
   TextRenderOpenGL(G, nullptr, I->Default_ID, st, TEXT_DEFAULT_SIZE, nullptr, false, 0, 1, orthoCGO);
+}
+
+/* Draw a single UTF-8 character (1-4 bytes) at the current text position and
+ * return the number of bytes consumed. Used by the popup menu, which renders
+ * text character by character. */
+int TextDrawUTF8Char(PyMOLGlobals * G, const char *st, CGO *orthoCGO)
+{
+  CText *I = G->Text;
+  unsigned char c = (unsigned char) st[0];
+  int n = 1;
+  if(c >= 0xF0)
+    n = 4;
+  else if(c >= 0xE0)
+    n = 3;
+  else if(c >= 0xC0)
+    n = 2;
+  char buf[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+  int i;
+  for(i = 0; i < n && st[i]; i++)
+    buf[i] = st[i];
+  TextRenderOpenGL(G, nullptr, I->Default_CJK_ID, buf, TEXT_DEFAULT_SIZE, nullptr, false, 0, 1, orthoCGO);
+  return n;
 }
 
 const char *TextRenderRay(PyMOLGlobals * G, CRay * ray, int text_id,
@@ -471,6 +498,11 @@ int TextInit(PyMOLGlobals * G)
   I->addFont(16, FontTypeNew(G, TTF_GenI102_dat, TTF_GenI102_len));
   I->addFont(17, FontTypeNew(G, TTF_DejaVuSerif_Oblique_dat, TTF_DejaVuSerif_Oblique_len));
   I->addFont(18, FontTypeNew(G, TTF_DejaVuSerif_BoldOblique_dat, TTF_DejaVuSerif_BoldOblique_len));
+
+  // CJK-capable font for the internal GUI (object list, popups, HUD).
+  // Noto Sans SC (subset), SIL Open Font License 1.1.
+  I->addFont(19, FontTypeNew(G, TTF_NotoSansSC_dat, TTF_NotoSansSC_len));
+  I->Default_CJK_ID = 19;
 #endif
 #endif
 
@@ -545,4 +577,22 @@ bool TextSetColorFromCode(PyMOLGlobals * G,
   }
 
   return true;
+}
+
+/* Translate an internal-GUI HUD string ("Mouse Mode", "Buttons", ...).
+ *
+ * The table is generated from data/i18n/zh_CN.json by
+ * tools/gen_hud_header.py.  The active language is communicated through
+ * $PYMOL_LANG, which pymol.i18n keeps up to date on every language change,
+ * so switching language at runtime works without a restart. */
+const char *TextTr(const char *text)
+{
+  const char *lang = getenv("PYMOL_LANG");
+  if(!lang || lang[0] != 'z' || lang[1] != 'h')
+    return text;
+  for(unsigned int i = 0; i < HudTrCount; i++) {
+    if(strcmp(HudTrTable[i].en, text) == 0)
+      return HudTrTable[i].zh;
+  }
+  return text;
 }

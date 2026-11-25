@@ -1,0 +1,26 @@
+NOTICE
+======
+
+This distribution contains the source code of the Open-Source PyMOL
+molecular visualization system, originally developed by Warren L. DeLano and
+subsequently developed and distributed by Schrödinger, LLC.
+
+Open-Source PyMOL is Copyright (C) Schrödinger, LLC.  All rights reserved
+under the terms of the accompanying LICENSE file, which is a permissive
+BSD-like license.  See LICENSE for the full terms.
+
+PyMOL(TM) is a trademark of Schrödinger, LLC.  This project is not affiliated
+with, endorsed by, or sponsored by Schrödinger, LLC.  Derivative software
+which contains PyMOL source code must be plainly distinguished from any and
+all PyMOL products distributed by Schrödinger, LLC in all publicity,
+advertising, and documentation.
+
+This project is "Based on PyMOL(TM)."
+
+Third-party components bundled in this distribution are listed in
+THIRD-PARTY-NOTICES.md.  Each is distributed under its own license, which
+remains in force for that component.
+
+The internationalization (i18n) subsystem, its translations, tests and
+documentation added on top of the upstream distribution are published under
+the same BSD-like terms as the rest of this project (see LICENSE).

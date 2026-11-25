@@ -12,6 +12,7 @@ Qt = QtCore.Qt
 
 from .keymapping import get_modifiers
 from .keymapping import get_wheel_button
+from . import qt_context_menu
 
 # don't import the heavy OpenGL (PyOpenGL) module
 from pymol._cmd import glViewport
@@ -181,8 +182,21 @@ class PyMOLGLWidget(BaseGLWidget):
     def mousePressEvent(self, ev, state=0):
         if ev.button() not in self._buttonMap:
             return
-        self.pymol.button(self._buttonMap[ev.button()], state,
-                          *self._event_x_y_mod(ev))
+        index = self._buttonMap[ev.button()]
+        # Right button: render the menu with Qt so that it can show CJK text.
+        # The C++ popup uses an ASCII bitmap font and would show "??????".
+        if index == 2 and qt_context_menu.can_show(self.pymol.cmd):
+            if state == 0:
+                self._qt_menu_pending = True
+                pos = (ev.globalPosition().toPoint()
+                       if hasattr(ev, 'globalPosition') else ev.globalPos())
+                qt_context_menu.show(self, pos)
+                return
+            if getattr(self, '_qt_menu_pending', False):
+                # swallow the matching release of a Qt-menu click
+                self._qt_menu_pending = False
+                return
+        self.pymol.button(index, state, *self._event_x_y_mod(ev))
 
     def mouseReleaseEvent(self, ev):
         self.mousePressEvent(ev, 1)

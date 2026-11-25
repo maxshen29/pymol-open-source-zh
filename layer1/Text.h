@@ -118,6 +118,7 @@ void TextIndent(PyMOLGlobals * G, float x, float y);
 void TextAdvance(PyMOLGlobals * G, float advance);
 void TextSetPos2i(PyMOLGlobals * G, int x, int y);
 void TextDrawChar(PyMOLGlobals * G, char ch , CGO *orthoCGO);
+int TextDrawUTF8Char(PyMOLGlobals * G, const char *st, CGO *orthoCGO);
 void TextDrawSubStrFast(PyMOLGlobals * G, const char *c, int x, int y, int start, int n , CGO *orthoCGO);
 void TextDrawCharRepeat(PyMOLGlobals * G, char c, int x, int y, int start, int n , CGO *orthoCGO);
 
@@ -132,5 +133,8 @@ bool TextGetIsPicking(PyMOLGlobals * G);
 
 bool TextStartsWithColorCode(const char *);
 bool TextSetColorFromCode(PyMOLGlobals *, const char *, const float *);
+
+/* Translate an internal-GUI HUD string using the generated table */
+const char *TextTr(const char *text);
 
 #endif

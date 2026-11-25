@@ -1,5 +1,18 @@
 *.pyc
+*.pyo
+__pycache__/
 *.d
 generated
 build
+dist
+*.egg-info
+.pytest_cache
+.mypy_cache
 .vscode
+
+# Built/portable runtime artifacts (not source — distribute via Releases)
+pymol安装包/
+_custom_build/__pycache__/
+
+# Local scratch
+.analysis/

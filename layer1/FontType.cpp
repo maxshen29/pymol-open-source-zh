@@ -93,7 +93,9 @@ static const char* FontTypeRenderOpenGLImpl(const RenderInfo* info, CFontType* I
     float descender = TypeFaceGetDescender(I->TypeFace) / 2.f;
     float v_scale = SceneGetScreenVertexScale(G, nullptr);
     copy2f(TextGetLabelBuffer(G), text_buffer);
-    sampling = info->sampling;
+    // info is nullptr when vector fonts are used by the Ortho overlay path
+    // (TextDrawStr / TextDrawStrAt); CharacterRenderOpenGL is null-safe too.
+    sampling = info ? info->sampling : 1;
     if(st && (*st)) {
       float *line_widths = nullptr;
       float screenWorldOffset[3] = { 0.0F, 0.0F, 0.0F };
@@ -206,7 +208,7 @@ static const char* FontTypeRenderOpenGLImpl(const RenderInfo* info, CFontType* I
         TextSetWorldPos(G, v);
 
         if(rpos) {
-          if(info->ortho) {
+          if(info && info->ortho) {
             float orig[3];
             SceneOriginGet(G, orig);
             SceneGetEyeNormal(G, orig, loc);
@@ -279,7 +281,7 @@ static const char* FontTypeRenderOpenGLImpl(const RenderInfo* info, CFontType* I
                 TextAdvance(G, TypeFaceGetKerning(I->TypeFace,
                                                   last_c, c, size) / sampling);
               }
-              cont &= CharacterRenderOpenGL(G, info, id, true, relativeMode, shaderCGO);       /* handles advance */
+              cont &= CharacterRenderOpenGL(G, info, id, rpos != nullptr, relativeMode, shaderCGO);       /* handles advance */
             }
           }
           kern_flag = true;

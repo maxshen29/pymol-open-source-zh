@@ -1848,3 +1848,64 @@ def scene_menu(self_cmd, name):
             [ 0, ''             , ''                      ],
             [ 1, del_col + 'delete', 'cmd.scene("'+safe_name+'","delete")'],
             ]
+
+
+# ---------------------------------------------------------------------------
+# Localize the labels of the C++ internal GUI popup menus.
+#
+# Every function above returns menu data of the form
+#     [code, 'label', command_or_submenu, ...]
+# where ``code`` is 0 (separator), 1 (item) or 2 (title).  The C++ side
+# (MenuActivate + PopUp) renders whatever string we return; with the embedded
+# CJK font (layer1/FontCJK.h) it can also draw Chinese.
+# ---------------------------------------------------------------------------
+
+import types as _types
+import re as _re
+from . import i18n as _i18n
+
+_MENU_CODES = (0, 1, 2)
+_COLOR_PREFIX = _re.compile(r'^(\\[0-9]{3})(.*)$')
+
+
+def _tr_menu_label(s):
+    if not isinstance(s, str) or not s:
+        return s
+    # keep a leading "\NNN" color code, translate the text after it
+    match = _COLOR_PREFIX.match(s)
+    if match:
+        return match.group(1) + _i18n.tr(match.group(2))
+    return _i18n.tr(s)
+
+
+def _localize_menu_data(data):
+    if not isinstance(data, list):
+        return data
+    result = []
+    for item in data:
+        if (isinstance(item, list) and len(item) >= 2
+                and item[0] in _MENU_CODES):
+            new = list(item)
+            new[1] = _tr_menu_label(item[1])
+            for i in range(2, len(new)):
+                if isinstance(new[i], list):
+                    new[i] = _localize_menu_data(new[i])
+            result.append(new)
+        else:
+            result.append(
+                _localize_menu_data(item) if isinstance(item, list) else item)
+    return result
+
+
+for _name, _obj in list(globals().items()):
+    if (isinstance(_obj, _types.FunctionType)
+            and _obj.__module__ == __name__
+            and not _name.startswith('_')):
+        _fn = _obj
+        def _wrap_menu(fn):
+            def _wrapped(*args, **kwargs):
+                return _localize_menu_data(fn(*args, **kwargs))
+            _wrapped.__name__ = fn.__name__
+            _wrapped.__doc__ = fn.__doc__
+            return _wrapped
+        globals()[_name] = _wrap_menu(_fn)

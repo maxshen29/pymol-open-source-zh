@@ -216,6 +216,10 @@ SEE ALSO
         'one_button_viewing'   : '1-Button Viewing',
         }
 
+    # localize the mouse-mode name shown in the internal GUI HUD
+    from pymol import i18n
+    mode_name_dict = {k: i18n.tr(v) for k, v in mode_name_dict.items()}
+
     mode_name_list = [
         'three_button_lights' ,
         'three_button_viewing',

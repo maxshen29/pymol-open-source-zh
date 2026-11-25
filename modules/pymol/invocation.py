@@ -28,6 +28,7 @@ Options
   --gldebug use glDebugMessageCallback for GL debugging
   --testing run pymol testing
   --diagnostics dump system diagnostics
+  --lang LANG  interface language (e.g. en, zh_CN); overrides $PYMOL_LANG
 
   -1        config_mouse one_button
   -2        config_mouse two_button
@@ -170,6 +171,7 @@ if True:
     options.gldebug = 0
     options.testing = 0
     options.openvr_stub = False
+    options.lang = None
 
     options.win_py = { 'irix':240,
                        'darwin': 214, # hmm...need to set to 192 for Leopard?...
@@ -280,6 +282,13 @@ if True:
                         options.gldebug = 1
                     elif a == "--testing":
                         options.testing = 1
+                    elif a == "--lang":
+                        if len(av):
+                            options.lang = av.pop()
+                        else:
+                            print(' Warning: --lang needs a language code')
+                    elif a.startswith("--lang="):
+                        options.lang = a.split("=", 1)[1]
                     elif a == "--diagnostics":
                         # same as: -cd diagnostics
                         options.no_gui=1

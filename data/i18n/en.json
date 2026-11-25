@@ -1,0 +1,12 @@
+{
+  "meta": {
+    "language": "en",
+    "native_name": "English",
+    "english_name": "English",
+    "source_language": "en",
+    "fallback": "en",
+    "version": "1.0",
+    "description": "Source language catalog. Keys are the untranslated English UI strings; symbolic keys must be listed here with their English text."
+  },
+  "strings": {}
+}
